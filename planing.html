@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Travel Itinerary Planner</title>
+  <style>
+    :root{
+      --bg:#070b15; --card:#0f1633; --ink:#e9edf8; --muted:#9ea8c7; --accent:#5ab0ff; --ok:#39e29a; --warn:#ffad5a;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{
+      background: radial-gradient(1400px 900px at 10% -10%, #1b2756 0%, #070b15 60%);
+      color:var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+      line-height:1.45;
+    }
+    .container{max-width:1100px;margin:28px auto;padding:0 16px}
+    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px}
+    .logo{font-weight:900;letter-spacing:.4px}
+    .header a,.header button{background:var(--accent);color:#061227;border:none;padding:9px 12px;border-radius:14px;font-weight:800;text-decoration:none;cursor:pointer}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.25);backdrop-filter: blur(8px)}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    label{font-size:14px;color:var(--muted)}
+    input,select,textarea{width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:var(--ink)}
+    textarea{min-height:110px}
+    .small{font-size:13px;color:var(--muted)}
+    .badge{display:inline-block;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.08);font-size:12px;margin:6px 8px 0 0;cursor:pointer;border:1px solid rgba(255,255,255,.12)}
+    .badge.active{background:rgba(90,176,255,.16);border-color:rgba(90,176,255,.5)}
+    .btn{background:var(--accent);color:#061227;border:none;padding:12px 14px;border-radius:14px;font-weight:900;cursor:pointer;width:100%}
+    .btn.secondary{background:transparent;color:var(--ink);border:1px solid rgba(255,255,255,.25)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    .sep{border:none;border-top:1px solid rgba(255,255,255,.1);margin:12px 0}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .col{flex:1;min-width:220px}
+    .plan{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .box{background:rgba(255,255,255,.04);border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,.08)}
+    .est{font-weight:800;color:var(--ok)}
+    .warn{color:var(--warn)}
+    .print-hint{font-size:12px;color:var(--muted)}
+    .no-plan{color:var(--muted);padding:12px}
+    .copy-toast{position:fixed;right:16px;bottom:16px;background:#111827;color:#e5e7eb;padding:10px 14px;border-radius:12px;opacity:0;transform:translateY(10px);transition:.3s}
+    .copy-toast.show{opacity:1;transform:translateY(0)}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}.plan{grid-template-columns:1fr}}
+    @media print{
+      body{background:white;color:#222}
+      .header,.print-hide{display:none}
+      .card{box-shadow:none;border:0}
+      .plan{grid-template-columns:1fr}
+      a{color:#222}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header print-hide">
+      <div class="logo">✈️ AI Travel Itinerary</div>
+      <div class="row">
+        <button id="btn-print" title="Save as PDF">Download PDF</button>
+        <button id="btn-share">Share Link</button>
+      </div>
+    </div>
+
+    <div class="card print-hide">
+      <h2>Plan your trip</h2>
+      <form id="planner" class="grid">
+        <div class="card">
+          <label>Destination</label>
+          <input name="destination" placeholder="e.g., Goa, India" required>
+          <label>Start Date</label>
+          <input name="start_date" type="date">
+          <div class="grid-3">
+            <div>
+              <label>Days</label>
+              <input name="days" type="number" min="1" max="21" value="3">
+            </div>
+            <div>
+              <label>Budget</label>
+              <select name="budget">
+                <option>Low</option><option selected>Medium</option><option>Luxury</option>
+              </select>
+            </div>
+            <div>
+              <label>Travelers</label>
+              <input name="travelers" type="number" min="1" value="2">
+            </div>
+          </div>
+          <label>Interests (select below or type, comma-separated)</label>
+          <input name="interests" placeholder="Beaches, Food, Shopping, History, Adventure">
+          <div id="interestBadges" class="row small" style="margin-top:6px">
+            <span class="badge">Beaches</span>
+            <span class="badge">Food</span>
+            <span class="badge">Shopping</span>
+            <span class="badge">History</span>
+            <span class="badge">Culture</span>
+            <span class="badge">Adventure</span>
+            <span class="badge">Nature</span>
+            <span class="badge">Nightlife</span>
+            <span class="badge">Religious</span>
+            <span class="badge">Photography</span>
+          </div>
+          <div class="grid-3" style="margin-top:10px">
+            <div>
+              <label>Pace</label>
+              <select name="pace">
+                <option>Relaxed</option><option selected>Balanced</option><option>Intense</option>
+              </select>
+            </div>
+            <div>
+              <label>Must include (comma-separated)</label>
+              <input name="must" placeholder="Baga Beach, Fort Aguada">
+            </div>
+            <div>
+              <label>Avoid (comma-separated)</label>
+              <input name="avoid" placeholder="Crowded clubs">
+            </div>
+          </div>
+          <label>Notes (optional)</label>
+          <textarea name="notes" placeholder="Must-see places or constraints"></textarea>
+        </div>
+
+        <div class="card">
+          <label class="small">Output Options</label>
+          <div class="row">
+            <button class="btn" type="submit">Generate Itinerary</button>
+            <button class="btn secondary" id="btn-clear" type="button">Clear</button>
+          </div>
+          <p class="print-hint" style="margin-top:8px">Tip: Generate your plan and use <b>Print → Save as PDF</b> to export.</p>
+          <hr class="sep">
+          <div class="small">Share: creates a link with your inputs (no server required).</div>
+        </div>
+      </form>
+    </div>
+
+    <div id="output" class="card">
+      <div id="summary"></div>
+      <div id="budget"></div>
+      <hr class="sep">
+      <div id="plan" class="plan"></div>
+      <div id="tips" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="copy-toast">Link copied ✅</div>
+
+  <script>
+    // ---------- Helpers ----------
+    const $ = (sel, el=document) => el.querySelector(sel);
+    const $$ = (sel, el=document) => Array.from(el.querySelectorAll(sel));
+
+    function parseCSV(str){
+      return (str||"").split(",").map(s=>s.trim()).filter(Boolean);
+    }
+    function fmtINR(n){
+      return new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Math.round(n||0));
+    }
+    function daysBetween(start, d){
+      try { const s=new Date(start); s.setHours(0,0,0,0); const e=new Date(s); e.setDate(s.getDate()+d-1); return [s,e]; } catch{ return [null,null]; }
+    }
+    function encodeState(obj){
+      return btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+    }
+    function decodeState(s){
+      try{ return JSON.parse(decodeURIComponent(escape(atob(s)))) }catch{ return null }
+    }
+
+    // ---------- Interest quick-select ----------
+    const planner = $('#planner');
+    const interestInput = planner && planner.elements['interests'];
+    if (planner){
+      $('#interestBadges').addEventListener('click', (e)=>{
+        if(!e.target.classList.contains('badge')) return;
+        e.target.classList.toggle('active');
+        const tags = $$('#interestBadges .badge.active').map(b=>b.textContent.trim());
+        const typed = parseCSV(interestInput.value);
+        const merged = Array.from(new Set([...typed, ...tags])).filter(Boolean);
+        interestInput.value = merged.join(', ');
+      });
+    }
+
+    // ---------- Rule-based AI generator ----------
+    const DEST_HINTS = {
+      goa: {
+        poi: ['Baga Beach','Calangute Beach','Fort Aguada','Candolim','Anjuna Flea Market','Chapora Fort','Basilica of Bom Jesus','Dona Paula'],
+        food: ['Beach shacks','Seafood thali','Fisherman\'s Wharf','Vinayak Family Restaurant'],
+        tips: ['Carry sunscreen & light clothes','Scooter rental ~ ₹400-600/day','North Goa = nightlife, South Goa = calmer beaches']
+      },
+      manali: {
+        poi: ['Hadimba Temple','Old Manali Cafe Street','Solang Valley','Atal Tunnel View','Jogini Waterfall','Vashisht Hot Springs'],
+        food: ['Cafes in Old Manali','Siddu & Trout'],
+        tips: ['Weather fluctuates; layer up','Book activities (paragliding/ATV) early']
+      },
+      jaipur: {
+        poi: ['Amber Fort','Hawa Mahal','City Palace','Jantar Mantar','Nahargarh Fort','Johari Bazaar'],
+        food: ['Lassiwala','Rawat Kachori','Chokhi Dhani'],
+        tips: ['Start early for forts (less heat)','Carry cash for bazaars']
+      },
+      delhi: {
+        poi: ['India Gate','Qutub Minar','Humayun\'s Tomb','Lotus Temple','Red Fort','Chandni Chowk'],
+        food: ['Paranthe Wali Gali','Khan Market','Saravana Bhavan'],
+        tips: ['Metro is fastest','Mondays some monuments closed']
+      },
+      mumbai: {
+        poi: ['Gateway of India','Marine Drive','Colaba Causeway','Sanjay Gandhi National Park','Juhu Beach','Bandra Fort'],
+        food: ['Vada Pav','Bademiya','Prithvi Cafe'],
+        tips: ['Local trains at peak hours are crowded','Uber/Auto for short hops']
+      }
+    };
+
+    function pick(list, n){
+      const arr = [...list];
+      const out = [];
+      while(arr.length && out.length < n){
+        out.push(arr.splice(Math.floor(Math.random()*arr.length),1)[0]);
+      }
+      return out;
+    }
+
+    function buildDayBlock(cityKey, interests){
+      const base = DEST_HINTS[cityKey] || { poi:['City Walk','Local Market','Iconic Landmark','Museum','Park'], food:['Local eatery'], tips:['Check local timings'] };
+      const morning = pick(base.poi, 1)[0];
+      const afternoon = pick(base.poi.filter(p=>p!==morning), 1)[0];
+      const evening = (interests.includes('Nightlife')? 'Night market / Live music' : pick(base.food,1)[0] + ' dinner');
+      return { morning, afternoon, evening };
+    }
+
+    function estimateCost(budget, travelers, pace){
+      const base = { Low: 2000, Medium: 4000, Luxury: 9000 }[budget] || 4000; // per person per day
+      const paceMul = { Relaxed: 0.9, Balanced: 1.0, Intense: 1.25 }[pace] || 1.0;
+      const dayPP = base * paceMul; // per person per day
+      return { perPerson: dayPP, perGroup: dayPP * (travelers||1) };
+    }
+
+    function generateItinerary(input){
+      const { destination, start_date, days, budget, travelers, interests, pace, must, avoid, notes } = input;
+      const cityKey = (destination||'').toLowerCase().split(',')[0].trim();
+      const interestArr = parseCSV(interests).map(x=>x.replace(/\s+/g,' ').trim());
+      const [start,end] = daysBetween(start_date, Number(days)||1);
+      const costs = estimateCost(budget, Number(travelers)||1, pace);
+
+      const plan = [];
+      const mustArr = parseCSV(must);
+      for (let d=0; d<(Number(days)||1); d++){
+        const blk = buildDayBlock(cityKey, interestArr);
+        // sprinkle must-includes across first days
+        if (mustArr[d]) { blk.morning = mustArr[d]; }
+        plan.push(blk);
+      }
+
+      // remove avoids if present
+      const avoidArr = parseCSV(avoid).map(a=>a.toLowerCase());
+      plan.forEach(day => {
+        for (const k of ['morning','afternoon','evening']){
+          if (avoidArr.some(a => (day[k]+'').toLowerCase().includes(a))){
+            day[k] = 'Leisure / Explore local cafes';
+          }
+        }
+      });
+
+      // tips block
+      const tips = (DEST_HINTS[cityKey]?.tips || ['Plan buffer time between attractions','Stay hydrated and check opening hours']).slice(0,3);
+      if (notes) tips.push('Note: '+notes);
+
+      return { start, end, costs, plan, interestArr, tips };
+    }
+
+    function gmapsLink(place, city){
+      return `https://www.google.com/maps/search/${encodeURIComponent(place + (city? (', '+city):''))}`;
+    }
+
+    function render(itin, input){
+      const summary = $('#summary');
+      const budget = $('#budget');
+      const plan = $('#plan');
+      const tips = $('#tips');
+
+      if (!itin){
+        summary.innerHTML = '<div class="no-plan">No itinerary yet. Fill the form and click <b>Generate Itinerary</b>.</div>';
+        plan.innerHTML = '';
+        budget.innerHTML = '';
+        tips.innerHTML = '';
+        return;
+      }
+
+      const startStr = itin.start ? itin.start.toDateString() : '—';
+      const endStr = itin.end ? itin.end.toDateString() : '—';
+
+      summary.innerHTML = `
+        <h2 style="margin:0">${input.destination || 'Your Trip'}</h2>
+        <div class="small">${startStr} → ${endStr} • ${input.days || 1} day(s) • ${input.travelers||1} traveler(s) • ${input.budget} budget • ${input.pace} pace</div>
+        ${itin.interestArr?.length? `<div style="margin-top:6px">${itin.interestArr.map(x=>`<span class=badge>${x}</span>`).join(' ')}</div>`:''}
+      `;
+
+      const dayCostPP = itin.costs.perPerson;
+      const dayCostGroup = itin.costs.perGroup;
+      const totalCostPP = dayCostPP * (Number(input.days)||1);
+      const totalCostGroup = dayCostGroup * (Number(input.days)||1);
+      budget.innerHTML = `
+        <div class="row">
+          <div class="box col">
+            <div class="small">Est. per person / day</div>
+            <div class="est">${fmtINR(dayCostPP)}</div>
+          </div>
+          <div class="box col">
+            <div class="small">Est. group / day</div>
+            <div class="est">${fmtINR(dayCostGroup)}</div>
+          </div>
+          <div class="box col">
+            <div class="small">Total (${input.days||1} days)</div>
+            <div class="est">${fmtINR(totalCostGroup)} <span class="small">(${fmtINR(totalCostPP)} pp)</span></div>
+          </div>
+        </div>
+      `;
+
+      plan.innerHTML = '';
+      itin.plan.forEach((d, i)=>{
+        const date = new Date(itin.start||new Date());
+        date.setDate(date.getDate()+i);
+        const nice = date.toDateString();
+        const city = (input.destination||'').split(',')[0];
+        const html = `
+          <div class="box">
+            <div class="small">Day ${i+1} • ${nice}</div>
+            <h3 style="margin:6px 0 8px 0">Suggested Plan</h3>
+            <div><b>Morning:</b> <a href="${gmapsLink(d.morning, city)}" target="_blank" rel="noopener">${d.morning}</a></div>
+            <div><b>Afternoon:</b> <a href="${gmapsLink(d.afternoon, city)}" target="_blank" rel="noopener">${d.afternoon}</a></div>
+            <div><b>Evening:</b> ${/http/.test(d.evening)? d.evening : `<a href="${gmapsLink(d.evening, city)}" target="_blank" rel="noopener">${d.evening}</a>`}</div>
+            <div class="small" style="margin-top:8px;opacity:.8">Customize by clicking and editing text after generation.</div>
+          </div>`;
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        plan.appendChild(div.firstElementChild);
+      });
+
+      tips.innerHTML = `
+        <div class="box">
+          <h3 style="margin:6px 0 8px 0">Tips</h3>
+          <ul style="margin:6px 0 0 18px">${itin.tips.map(t=>`<li>${t}</li>`).join('')}</ul>
+        </div>
+      `;
+
+      // make plan editable inline
+      $$('#plan .box div a').forEach(a=>{
+        a.parentElement.setAttribute('contenteditable','true');
+        a.removeAttribute('href');
+        a.removeAttribute('target');
+        a.textContent = a.textContent; // display clean text
+      });
+    }
+
+    // ---------- Form submit ----------
+    function readForm(){
+      const f = planner.elements;
+      return {
+        destination: f['destination'].value.trim(),
+        start_date: f['start_date'].value,
+        days: Number(f['days'].value||1),
+        budget: f['budget'].value,
+        travelers: Number(f['travelers'].value||1),
+        interests: f['interests'].value,
+        pace: f['pace'].value,
+        must: f['must'].value,
+        avoid: f['avoid'].value,
+        notes: f['notes'].value
+      };
+    }
+
+    function fillForm(obj){
+      const f = planner.elements;
+      if(!obj) return;
+      for (const k of Object.keys(obj)){
+        if(f[k]) f[k].value = obj[k];
+      }
+      // badges reflect interests
+      const tags = parseCSV(obj.interests||'');
+      $$('#interestBadges .badge').forEach(b=>{
+        b.classList.toggle('active', tags.includes(b.textContent.trim()));
+      });
+    }
+
+    planner?.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const input = readForm();
+      const itin = generateItinerary(input);
+      localStorage.setItem('last_itinerary_input', JSON.stringify(input));
+      render(itin, input);
+    });
+
+    $('#btn-clear')?.addEventListener('click', ()=>{
+      planner.reset();
+      localStorage.removeItem('last_itinerary_input');
+      render(null, {});
+      $$('#interestBadges .badge').forEach(b=>b.classList.remove('active'));
+    });
+
+    $('#btn-print')?.addEventListener('click', ()=> window.print());
+
+    // ---------- Share link ----------
+    function showToast(){
+      const t = $('#toast'); t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1600);
+    }
+    $('#btn-share')?.addEventListener('click', ()=>{
+      const input = readForm();
+      const code = encodeState(input);
+      const url = `${location.origin}${location.pathname}?plan=${code}`;
+      navigator.clipboard.writeText(url).then(showToast);
+    });
+
+    // ---------- Init from query or localStorage ----------
+    (function init(){
+      const q = new URLSearchParams(location.search);
+      const code = q.get('plan');
+      let input = null;
+      if (code) input = decodeState(code);
+      if (!input) {
+        try { input = JSON.parse(localStorage.getItem('last_itinerary_input')||'null'); } catch{}
+      }
+      if (input){
+        fillForm(input);
+        render(generateItinerary(input), input);
+      } else {
+        render(null, {});
+      }
+    })();
+  </script>
+</body>
+</html>
